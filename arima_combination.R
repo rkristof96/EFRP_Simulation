@@ -1,5 +1,3 @@
-setwd("C:/Users/Kristof/OneDrive/EFRP/ARIMA combination")
-
 library(bazar)
 library(forecast)
 library(Metrics)
@@ -12,42 +10,51 @@ set.seed(2020)
 
 #parameters
 
-samplesize <- 1000
-times <- 3 #25 # number of repeating experiments
+#samplesize <- c(50,100, 200)
+samplesize <- c(50, 100, 200, 500, 1000)
+times <- 100 # number of repeating experiments
 
 modelsnum <- 6 # number of models
 
-std <- c(1,2)
-#std <- c(0.01,0.05,0.1,0.15,0.25,0.5,0.75,1,2,5) # standard deviation of the noise-> the noise is assumed being normally distributed
+# std <- c(1,2)
+std <- c(0.01,0.05,0.1,0.15,0.25,0.5,0.75,1,2,5) # standard deviation of the noise-> the noise is assumed being normally distributed
 samplespliratio <- 0.9
 
 # rmse
 modelnames <- c("arma0", "arma1","arma2","arma_original","arma3","arma4","combination")
-results <- array(NA,dim = c((modelsnum+1), times, length(std)), dimnames = list(modelnames,1:times,paste0("sd=",std)))
-# first dim model number
-# second dim number of repeated experiments
-# third dim # change of standard deviation
+
+# best models selection # auxilary variables
+compared_models <- c("arma_original", "combination")
+# index 4 means the original model and index 7 the combined
+indexes <- c(4,7)
+# resultslist contains the RMSE data
+resultslist <- list()
 
 # data generation
-
+for(u in 1:length(samplesize)){
+  #results <- array(NA,dim = c((modelsnum+1), times, length(std)), dimnames = list(modelnames,1:times,paste0("sd=",std)))
+  results <- array(NA,dim = c(2, times, length(std)), dimnames = list(compared_models,1:times,paste0("sd=",std)))
+  # first dim model number
+  # second dim number of repeated experiments
+  # third dim # change of standard deviation
 for(i in 1:length(std)){
   std_i <- std[i]
 for(j in 1: times){
 
 # sample points generation from ARMA(2,2) with given parameters
   
-samplepoints<-arima.sim(n=samplesize, list(ar=c(0.6,0.2), ma=c(0.6,0.2)),innov = rnorm(samplesize, mean = 0, sd=std_i))
+samplepoints<-arima.sim(n=samplesize[u], list(ar=c(0.6,0.2), ma=c(0.6,0.2)),innov = rnorm(samplesize[u], mean = 0, sd=std_i))
 # cheking proper samplesplit ratio; samplesize must be whole number
-assertthat::assert_that(samplesize>1|samplesize<0, msg="Samplesplit ratio variable must be between 0 and 1!")
+assertthat::assert_that((samplespliratio<1&samplespliratio>0), msg="Samplesplit ratio variable must be between 0 and 1!")
 
 # sample splitting
-trainlength <- samplespliratio*samplesize
+trainlength <- samplespliratio*samplesize[u]
 assertthat::assert_that(is.wholenumber(trainlength)==TRUE, msg="The sample size is not whole number, please revise samplesplit!")
 
 # in-sample
 insample <- samplepoints[1:trainlength]
 #out-of-sample
-outofsample <- samplepoints[(trainlength+1):samplesize]
+outofsample <- samplepoints[(trainlength+1):samplesize[u]]
 
 # temp matrix is necessary for rolling-window estimation; windowsize=insample size; lag=1 (which is the horizont of the forecast)
 temp <- matrix(NA, nrow=(modelsnum+1), ncol = (length(outofsample)))
@@ -96,43 +103,37 @@ temp[7,l] <- forecast_combination$mean
 }
 
 # rmse calculation for all models
-results[,j,i] <- apply(temp, 1,FUN=function(x) rmse(x,outofsample))
+results[,j,i] <- apply(temp[indexes,], 1,FUN=function(x) rmse(x,outofsample))
 
 }
 }
 
+resultslist[[u]] <-results
 
-best_rmse_models<-matrix(NA, ncol=times, nrow=length(std))
-# this matrix  includes the models with lowest RMSE
-rownames(best_rmse_models) <- paste0("sd=", std)
-colnames(best_rmse_models) <- paste0("exp=",1:times)
-
-
-best_models_list<-list()
-
-indexes <- c(4,7)
-# index 4 means the original model and index 7 the combined
-
-for(k in 1:length(std)){
-best_rmse_models[k,]<-(apply(results[indexes,,k],2, FUN = which.min))
-best_models_list[[k]] <- table(best_rmse_models[k,])
 }
 
-# legjobb modellek szórásonként
-compared_models <- c("arma_original", "combination")
+# modelsfrequencylist: count how many times were lower the RMSE
+modelsfrequencylist <-list()
 
-final <- compared_models[as.numeric(names(unlist(lapply(best_models_list, which.max))))]
-# This step seems to be complicated, it is not!
-# 1. I calculate the index of the most frequent model apperad in the sample (lapply)
-# 2. I convert list to vector by unlisting
-# 3. I check the names of the vector (names), which are the model indexes
-# 4. I convert the characters to numbers as.numeric()
-# 5. I select the best model from the compared_models list
+for(n in 1:length(samplesize)){
+modelsfrequency <- matrix(NA, ncol = 2, nrow = length(std))
+for(m in 1:length(std)){
+  modelsfrequency[m,] <- table(apply(resultslist[[n]][,,m],2,FUN=which.min))
+}
+modelsfrequencylist[[n]]<-modelsfrequency
+}
 
-names(final) <- paste0("sd=", std)
-# solution; best models for every standard deviation
-final
+# frequencytable presents count how many time overperformed one modell the other
+frequencytable <- array(unlist(modelsfrequencylist), dim = c(length(std), 2, length(samplesize)), dimnames = list(paste0("sd=", std), compared_models, paste0("T=", samplesize)))
+
+
+# includes the solution of the simulation
+final <- matrix(compared_models[sapply(modelsfrequencylist, FUN=function(x)apply(x, 1, which.max))],ncol=length(std),nrow = length(samplesize), byrow = T)
+colnames(final) <- paste0("sd=", std)
+rownames(final) <- paste0("T=", samplesize)
 
 e <- Sys.time()
 
 e-s
+
+final
