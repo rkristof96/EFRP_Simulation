@@ -1,0 +1,6 @@
+"","sd=0.01","sd=0.05","sd=0.1","sd=0.15","sd=0.25","sd=0.5","sd=0.75","sd=1","sd=2","sd=5"
+"T=50","arma_original","arma_original","arma_original","arma_original","arma_original","arma_original","arma_original","arma_original","arma_original","arma_original"
+"T=100","arma_original","arma_original","arma_original","arma_original","combination","arma_original","arma_original","arma_original","arma_original","combination"
+"T=200","combination","combination","combination","combination","arma_original","arma_original","combination","arma_original","arma_original","arma_original"
+"T=500","combination","combination","combination","combination","arma_original","combination","combination","combination","arma_original","combination"
+"T=1000","combination","combination","combination","arma_original","arma_original","combination","combination","arma_original","arma_original","combination"
